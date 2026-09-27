@@ -37,7 +37,7 @@ class CreateInstanceRequestTest {
     }
 
     @Test
-    void shapeAndDeadlineAreSet() {
+    void shapeAndDeadlineAreSet() throws Exception {
         AgentTemplate t = template();
         NamespaceCloud cloud = new NamespaceCloud("ns");
         Compute.CreateInstanceRequest req =
@@ -58,7 +58,7 @@ class CreateInstanceRequestTest {
     }
 
     @Test
-    void instancesAreLabelledForOrphanReaping() {
+    void instancesAreLabelledForOrphanReaping() throws Exception {
         AgentTemplate t = template();
         NamespaceCloud cloud = new NamespaceCloud("my-cloud");
         Compute.CreateInstanceRequest req =
@@ -74,7 +74,7 @@ class CreateInstanceRequestTest {
     }
 
     @Test
-    void inboundStrategyInjectsAgentCredentials() {
+    void inboundStrategyInjectsAgentCredentials() throws Exception {
         AgentTemplate t = template();
         InboundLaunchStrategy inbound = new InboundLaunchStrategy();
         inbound.setExposeDockerSocket(true);
@@ -98,7 +98,7 @@ class CreateInstanceRequestTest {
     }
 
     @Test
-    void cacheVolumesArePassedThrough() {
+    void cacheVolumesArePassedThrough() throws Exception {
         AgentTemplate t = template();
         NamespaceCloud cloud = new NamespaceCloud("ns");
         Compute.CreateInstanceRequest req =
@@ -113,7 +113,7 @@ class CreateInstanceRequestTest {
     }
 
     @Test
-    void theEndpointPrefixIsNeverSentAsTheInstanceRegion() {
+    void theEndpointPrefixIsNeverSentAsTheInstanceRegion() throws Exception {
         // Regression: "us"/"eu" select the API host but are not site names.
         // Sending one as the region makes Namespace reject the request with
         // "no available region to start a linux/amd64 instance".
@@ -127,7 +127,7 @@ class CreateInstanceRequestTest {
     }
 
     @Test
-    void everyInstanceLabelNameIsValidForNamespace() {
+    void everyInstanceLabelNameIsValidForNamespace() throws Exception {
         // Namespace documents label names as matching this regex, max 63 bytes.
         // A Kubernetes-style "jenkins.io/agent" is rejected for the slash, and
         // CreateInstance then fails with a bare INVALID_ARGUMENT.
@@ -148,7 +148,7 @@ class CreateInstanceRequestTest {
     }
 
     @Test
-    void anExplicitInstanceRegionIsHonoured() {
+    void anExplicitInstanceRegionIsHonoured() throws Exception {
         AgentTemplate t = template();
         NamespaceCloud cloud = new NamespaceCloud("ns");
         cloud.setInstanceRegion("ord");

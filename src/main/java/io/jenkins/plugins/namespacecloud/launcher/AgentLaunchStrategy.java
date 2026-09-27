@@ -28,9 +28,14 @@ public abstract class AgentLaunchStrategy extends AbstractDescribableImpl<AgentL
     /**
      * Contributes to the instance request before it is sent — typically the
      * container that will host the agent, plus any credentials it needs.
+     *
+     * @throws IOException if the request cannot be completed, for instance
+     *     because a configured credential is missing or unreadable. Failing
+     *     here is preferable to provisioning an instance the controller would
+     *     then be unable to connect to.
      */
     public abstract void configureInstance(
-            @NonNull Compute.CreateInstanceRequest.Builder builder, @NonNull LaunchContext ctx);
+            @NonNull Compute.CreateInstanceRequest.Builder builder, @NonNull LaunchContext ctx) throws IOException;
 
     /**
      * Builds the Jenkins-side launcher. Called once the instance is RUNNING, so

@@ -1,4 +1,11 @@
 <div>
   Concurrent builds per agent. Leave at 1 unless builds are light and isolation
   does not matter &mdash; agents are single-use and cheap.
+  <p>
+    At 1, the instance is destroyed as soon as its build finishes, so the idle
+    timeout below only applies to an agent that connects but is never given
+    work. Above 1, the agent is kept until it has been idle for that timeout,
+    because terminating it after the first build would kill the builds still
+    running on its other executors.
+  </p>
 </div>

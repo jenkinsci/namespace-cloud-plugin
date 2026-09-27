@@ -19,7 +19,8 @@
 
   <!-- Lives at starkware-libs while hosting is requested. If the Jenkins
        project accepts it, the repository moves to
-       github.com/starkware-libs/namespace-cloud-plugin and these URLs change. -->
+       github.com/jenkinsci/namespace-cloud-plugin and the scm URLs below
+       change to match; this <url> already points at that destination. -->
   <url>https://github.com/jenkinsci/${project.artifactId}-plugin</url>
 
   <licenses>
@@ -56,12 +57,15 @@
          masked in maven-hpi-plugin configuration so they cannot resolve against
          another plugin's copy. Declared explicitly so that anything NEW showing
          up here fails the build rather than being bundled by accident. -->
-    <hpi.bundledArtifacts>animal-sniffer-annotations,annotations,error_prone_annotations,failureaccess,grpc-api,grpc-context,grpc-core,grpc-netty-shaded,grpc-protobuf,grpc-protobuf-lite,grpc-stub,grpc-util,gson,guava,j2objc-annotations,listenablefuture,perfmark-api,proto-google-common-protos,protobuf-java</hpi.bundledArtifacts>
+    <hpi.bundledArtifacts>grpc-api,grpc-context,grpc-core,grpc-netty-shaded,grpc-protobuf,grpc-protobuf-lite,grpc-stub,grpc-util,perfmark-api,proto-google-common-protos,protobuf-java</hpi.bundledArtifacts>
     <banObsoleteDependencyOverrides.skip>false</banObsoleteDependencyOverrides.skip>
     <ban-junit4-imports.skip>false</ban-junit4-imports.skip>
     <ban-deprecated-stapler.skip>false</ban-deprecated-stapler.skip>
     <ban-commons-lang-2.skip>false</ban-commons-lang-2.skip>
-    <jenkins.baseline>2.541</jenkins.baseline>
+    <!-- 2.555.x drops support for agents running Java 17, so the stock agent
+         images this plugin suggests are JDK 21 only. Lowering this baseline
+         again would mean reinstating a jdk17 image that cannot connect. -->
+    <jenkins.baseline>2.555</jenkins.baseline>
     <jenkins.version>${jenkins.baseline}.3</jenkins.version>
     <grpc.version>1.84.0</grpc.version>
     <!-- Buf does not publish prebuilt Java SDKs for buf.build/namespace/cloud
@@ -86,7 +90,7 @@
       <dependency>
         <groupId>io.jenkins.tools.bom</groupId>
         <artifactId>bom-${jenkins.baseline}.x</artifactId>
-        <version>7002.v028a_3607ddc8</version>
+        <version>7093.v37de7b_4a_8a_4f</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -117,6 +121,13 @@
     <dependency>
       <groupId>io.grpc</groupId>
       <artifactId>grpc-netty-shaded</artifactId>
+      <exclusions>
+        <!-- Supplied by the gson-api plugin; see the dependency below. -->
+        <exclusion>
+          <groupId>com.google.code.gson</groupId>
+          <artifactId>gson</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>io.grpc</groupId>
@@ -130,10 +141,29 @@
       <groupId>io.jenkins.plugins</groupId>
       <artifactId>caffeine-api</artifactId>
     </dependency>
+
+    <!-- gson reaches the plugin through this api plugin at runtime instead of
+         being packaged into it. -->
+    <dependency>
+      <groupId>io.jenkins.plugins</groupId>
+      <artifactId>gson-api</artifactId>
+    </dependency>
     <!-- Jenkins plugin dependencies -->
+    <!-- Apache MINA, used to compute the public half of the configured SSH
+         private key so the two cannot drift apart. -->
+    <dependency>
+      <groupId>io.jenkins.plugins.mina-sshd-api</groupId>
+      <artifactId>mina-sshd-api-common</artifactId>
+    </dependency>
     <dependency>
       <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>credentials</artifactId>
+    </dependency>
+    <!-- OnceRetentionStrategy: terminates a single-executor agent as soon as
+         its build finishes, instead of waiting out the idle timeout. -->
+    <dependency>
+      <groupId>org.jenkins-ci.plugins</groupId>
+      <artifactId>durable-task</artifactId>
     </dependency>
     <dependency>
       <groupId>org.jenkins-ci.plugins</groupId>
@@ -147,11 +177,41 @@
       <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>ssh-slaves</artifactId>
     </dependency>
+    <dependency>
+      <groupId>com.google.android</groupId>
+      <artifactId>annotations</artifactId>
+      <version>4.1.1.4</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <!-- Annotation-only artifacts that gRPC and Guava declare. They have CLASS
+         retention, so they are needed to compile against those libraries and
+         never loaded at runtime; provided keeps them out of the plugin. -->
+    <dependency>
+      <groupId>com.google.errorprone</groupId>
+      <artifactId>error_prone_annotations</artifactId>
+      <scope>provided</scope>
+    </dependency>
+
+    <!-- Shipped by Jenkins core. Kept on the compile path because gRPC's own
+         signatures use it (ListenableFuture on the generated stubs), but not
+         bundled: a second copy inside the plugin would shadow core's. -->
+    <dependency>
+      <groupId>com.google.guava</groupId>
+      <artifactId>guava</artifactId>
+      <scope>provided</scope>
+    </dependency>
     <!-- Required on the compile path by protoc-generated gRPC stubs. -->
     <dependency>
       <groupId>jakarta.annotation</groupId>
       <artifactId>jakarta.annotation-api</artifactId>
       <version>3.0.0</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.codehaus.mojo</groupId>
+      <artifactId>animal-sniffer-annotations</artifactId>
+      <version>1.27</version>
       <scope>provided</scope>
     </dependency>
 

@@ -1,8 +1,15 @@
 <?jelly escape-by-default='true'?>
 <j:jelly xmlns:j="jelly:core" xmlns:f="/lib/form">
 
-  <f:entry title="${%Name}" field="name">
-    <f:textbox default="namespace"/>
+  <!-- The name identifies the cloud and must round-trip, but it is not
+       editable: Jenkins checks for duplicates only when a cloud is created, so
+       editing it here could introduce one. Rename via "Display name" instead. -->
+  <f:invisibleEntry>
+    <f:textbox field="name"/>
+  </f:invisibleEntry>
+
+  <f:entry title="${%Display name}" field="displayName">
+    <f:textbox/>
   </f:entry>
 
   <f:entry title="${%Namespace Proj ID}" field="registryPrefix"

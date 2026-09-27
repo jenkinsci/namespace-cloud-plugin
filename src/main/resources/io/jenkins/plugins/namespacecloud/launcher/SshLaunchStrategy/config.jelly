@@ -13,13 +13,9 @@
     <f:combobox default="jenkins/inbound-agent:latest-jdk21"/>
   </f:entry>
 
-  <f:entry title="${%SSH private key}" field="credentialsId">
+  <f:entry title="${%SSH private key}" field="credentialsId"
+           description="${%Its public half is computed and injected into the instance, so no second field can fall out of step with it.}">
     <c:select xmlns:c="/lib/credentials"/>
-  </f:entry>
-
-  <f:entry title="${%Authorized public key}" field="authorizedKey"
-           description="${%The public half of the key above. Injected into the instance so Namespace accepts the connection.}">
-    <f:textarea/>
   </f:entry>
 
   <f:advanced>

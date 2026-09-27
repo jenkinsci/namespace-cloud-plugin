@@ -40,13 +40,17 @@ class ConfigurationRoundTripTest {
 
         NamespaceCloud cloud = new NamespaceCloud("ns");
         cloud.setRegion("eu");
+        cloud.setDisplayName("Namespace (EU)");
         cloud.setTemplates(List.of(template));
         Jenkins.get().clouds.add(cloud);
 
         j.configRoundtrip();
 
+        // The name is submitted from a hidden field, so a round trip is the only
+        // thing that catches it going missing and the cloud losing its identity.
         NamespaceCloud after = (NamespaceCloud) Jenkins.get().clouds.getByName("ns");
         assertNotNull(after, "cloud should survive a config round trip");
+        assertEquals("Namespace (EU)", after.getDisplayName());
         assertEquals("eu", after.getRegion());
         assertEquals("eu.compute.namespaceapis.com", after.getComputeEndpoint());
         assertEquals(1, after.getTemplates().size());
@@ -77,7 +81,7 @@ class ConfigurationRoundTripTest {
     void sshProfileSurvivesRoundTrip(JenkinsRule j) throws Exception {
         AgentTemplate template = new AgentTemplate("ssh-profile");
         template.setLabels("ns-ssh");
-        template.setLaunchStrategy(new SshLaunchStrategy("creds-id", "ssh-ed25519 AAAAC3Nz jenkins"));
+        template.setLaunchStrategy(new SshLaunchStrategy("creds-id"));
 
         NamespaceCloud cloud = new NamespaceCloud("ns-ssh-cloud");
         cloud.setTemplates(List.of(template));
@@ -90,7 +94,13 @@ class ConfigurationRoundTripTest {
         SshLaunchStrategy strategy = assertInstanceOf(
                 SshLaunchStrategy.class, after.getTemplates().get(0).getLaunchStrategy());
         assertEquals("creds-id", strategy.getCredentialsId());
-        assertEquals("ssh-ed25519 AAAAC3Nz jenkins", strategy.getAuthorizedKey());
         assertTrue(strategy.requiresSshGrants(), "SSH launching needs the extra instance:ssh grant");
+    }
+
+    @Test
+    void aCloudWithoutADisplayNameFallsBackToItsName(JenkinsRule j) {
+        // Existing configurations have no displayName stored; the UI must not
+        // show a blank cloud for them.
+        assertEquals("ns-unnamed", new NamespaceCloud("ns-unnamed").getDisplayName());
     }
 }

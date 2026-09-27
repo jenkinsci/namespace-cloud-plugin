@@ -1,4 +1,9 @@
 <div>
   Terminate the agent after this long with no build running. The instance is
   destroyed at the same time.
+  <p>
+    With a single executor &mdash; the default &mdash; the agent is destroyed
+    the moment its build finishes, so this only bounds how long an agent that
+    never receives work is kept alive.
+  </p>
 </div>

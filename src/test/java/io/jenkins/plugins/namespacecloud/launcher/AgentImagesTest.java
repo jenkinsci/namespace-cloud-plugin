@@ -18,8 +18,7 @@ class AgentImagesTest {
         // fail just because the registry cannot be queried.
         ComboBoxModel m = AgentImages.suggest(null);
         assertTrue(m.contains(AgentImages.CLEAN_JDK21), "the clean JDK21 image must always be offered");
-        assertTrue(m.contains(AgentImages.CLEAN_JDK17));
-        assertEquals(2, m.size(), "no registry access means stock images only");
+        assertEquals(1, m.size(), "no registry access means stock images only");
     }
 
     @Test
@@ -27,6 +26,15 @@ class AgentImagesTest {
         ComboBoxModel m = AgentImages.suggest("no-such-credential-id");
         assertTrue(m.contains(AgentImages.CLEAN_JDK21));
         assertFalse(m.isEmpty());
+    }
+
+    @Test
+    void noStockImageRunsAJdkOlderThanTheBaselineSupports(JenkinsRule j) {
+        // The 2.555.x baseline cannot talk to agents on Java 17, so suggesting
+        // such an image would provision an instance that never connects.
+        for (String ref : AgentImages.suggest(null)) {
+            assertFalse(ref.contains("jdk17"), "must not offer a jdk17 agent image: " + ref);
+        }
     }
 
     @Test

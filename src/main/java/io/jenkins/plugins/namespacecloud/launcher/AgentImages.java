@@ -24,12 +24,14 @@ public final class AgentImages {
     private static final Logger LOGGER = Logger.getLogger(AgentImages.class.getName());
 
     /**
-     * Stock agent images. Picking one of these is the "clean instance" case:
-     * no preinstalled tooling beyond a JDK and the Jenkins agent itself.
+     * Stock agent image. Picking this is the "clean instance" case: no
+     * preinstalled tooling beyond a JDK and the Jenkins agent itself.
+     *
+     * <p>JDK 21 only. Jenkins 2.555.x, this plugin's baseline, no longer
+     * supports agents running Java 17, so a jdk17 image would provision an
+     * instance that then fails to connect.
      */
     public static final String CLEAN_JDK21 = "jenkins/inbound-agent:latest-jdk21";
-
-    public static final String CLEAN_JDK17 = "jenkins/inbound-agent:latest-jdk17";
 
     private AgentImages() {}
 
@@ -43,7 +45,6 @@ public final class AgentImages {
     public static ComboBoxModel suggest(@CheckForNull String credentialsId) {
         Set<String> out = new LinkedHashSet<>();
         out.add(CLEAN_JDK21);
-        out.add(CLEAN_JDK17);
 
         // Listing the workspace registry reveals what images an organisation
         // builds, and it spends a stored credential to do so. Neither should be

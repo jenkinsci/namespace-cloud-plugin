@@ -79,6 +79,7 @@ public class NamespaceCloud extends Cloud {
 
     private static final long PERMISSION_TTL_MILLIS = 300_000L;
 
+    private String displayName;
     private String credentialsId;
     private String region = NamespaceClient.DEFAULT_REGION;
     private String computeEndpointOverride;
@@ -98,6 +99,28 @@ public class NamespaceCloud extends Cloud {
     @DataBoundConstructor
     public NamespaceCloud(@NonNull String name) {
         super(name);
+    }
+
+    /**
+     * The label shown in the UI, which is safe to change at any time.
+     *
+     * <p>{@link #name} deliberately is not editable on the configuration page.
+     * Jenkins asks for it when the cloud is created and rejects a duplicate
+     * there, but nothing stops a later edit from colliding with another cloud,
+     * and duplicate cloud names cause trouble inside Jenkins. Renaming is
+     * therefore done here instead, leaving the identity alone.
+     *
+     * <p>Falls back to the name so the UI never shows a blank cloud.
+     */
+    @Override
+    @NonNull
+    public String getDisplayName() {
+        return displayName == null || displayName.isBlank() ? name : displayName;
+    }
+
+    @DataBoundSetter
+    public void setDisplayName(String displayName) {
+        this.displayName = displayName;
     }
 
     public String getCredentialsId() {
@@ -507,7 +530,8 @@ public class NamespaceCloud extends Cloud {
             String agentName,
             LaunchContext ctx,
             AgentLaunchStrategy strategy,
-            Compute.InstanceShape shape) {
+            Compute.InstanceShape shape)
+            throws IOException {
         Compute.CreateInstanceRequest.Builder b = Compute.CreateInstanceRequest.newBuilder()
                 .setShape(shape)
                 .setDocumentedPurpose("Jenkins agent " + agentName + " (profile " + template.getName() + ")")

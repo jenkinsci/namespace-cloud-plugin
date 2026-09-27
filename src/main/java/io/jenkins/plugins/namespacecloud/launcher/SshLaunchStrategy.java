@@ -5,6 +5,7 @@ import com.cloudbees.plugins.credentials.CredentialsMatchers;
 import com.cloudbees.plugins.credentials.CredentialsProvider;
 import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
 import com.cloudbees.plugins.credentials.domains.DomainRequirement;
+import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
 import hudson.model.Item;
@@ -13,14 +14,26 @@ import hudson.security.ACL;
 import hudson.slaves.ComputerLauncher;
 import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
+import hudson.util.Secret;
 import io.jenkins.plugins.namespacecloud.client.NamespaceClient;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
+import java.security.KeyPair;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import jenkins.model.Jenkins;
 import namespace.cloud.compute.v1beta.Compute;
+import org.apache.sshd.common.NamedResource;
+import org.apache.sshd.common.config.keys.FilePasswordProvider;
+import org.apache.sshd.common.config.keys.KeyUtils;
+import org.apache.sshd.common.config.keys.PublicKeyEntry;
+import org.apache.sshd.common.util.security.SecurityUtils;
 import org.jenkinsci.Symbol;
 import org.kohsuke.stapler.AncestorInPath;
 import org.kohsuke.stapler.DataBoundConstructor;
@@ -35,12 +48,11 @@ import org.kohsuke.stapler.verb.POST;
  * able to reach Namespace's regional ingress, and the token additionally needs
  * the {@code instance:ssh} and {@code ingress:access} grants.
  *
- * <p>Namespace authorises SSH against public keys injected at instance creation,
- * so the configured private-key credential and {@link #getAuthorizedKey()} must
- * be halves of the same keypair. The public half is supplied explicitly rather
- * than derived, because Jenkins private-key credentials may be passphrase
- * protected and deriving the public half would require unlocking them at
- * configuration time.
+ * <p>Namespace authorises SSH against public keys injected at instance creation.
+ * Those are computed from the configured private-key credential rather than
+ * configured alongside it: a separately stored public key silently stops
+ * matching the moment the credential is rotated, and the failure surfaces only
+ * as an agent that cannot be reached.
  */
 public class SshLaunchStrategy extends AgentLaunchStrategy {
 
@@ -49,18 +61,12 @@ public class SshLaunchStrategy extends AgentLaunchStrategy {
 
     private String image = DEFAULT_IMAGE;
     private String credentialsId;
-    // False positive: this holds the PUBLIC half of an SSH keypair, which is
-    // published to the instance on purpose and is not a secret. The CodeQL rule
-    // matches on field name and type alone.
-    @SuppressWarnings("lgtm[jenkins/plaintext-storage]")
-    private String authorizedKey;
 
     private String javaPath;
 
     @DataBoundConstructor
-    public SshLaunchStrategy(String credentialsId, String authorizedKey) {
+    public SshLaunchStrategy(String credentialsId) {
         this.credentialsId = credentialsId;
-        this.authorizedKey = authorizedKey;
     }
 
     public String getImage() {
@@ -74,10 +80,6 @@ public class SshLaunchStrategy extends AgentLaunchStrategy {
 
     public String getCredentialsId() {
         return credentialsId;
-    }
-
-    public String getAuthorizedKey() {
-        return authorizedKey;
     }
 
     public String getJavaPath() {
@@ -95,7 +97,8 @@ public class SshLaunchStrategy extends AgentLaunchStrategy {
     }
 
     @Override
-    public void configureInstance(@NonNull Compute.CreateInstanceRequest.Builder builder, @NonNull LaunchContext ctx) {
+    public void configureInstance(@NonNull Compute.CreateInstanceRequest.Builder builder, @NonNull LaunchContext ctx)
+            throws IOException {
         Map<String, String> env = new LinkedHashMap<>(ctx.template().getEnvironmentMap());
 
         // The container must stay up for the controller to SSH into it; unlike
@@ -109,11 +112,85 @@ public class SshLaunchStrategy extends AgentLaunchStrategy {
                 .setWorkloadType(Compute.ContainerRequest.WorkloadType.SERVICE)
                 .build());
 
-        if (authorizedKey != null && !authorizedKey.isBlank()) {
-            builder.setExperimental(builder.getExperimental().toBuilder()
-                    .addAuthorizedSshKeys(authorizedKey.trim())
-                    .build());
+        Compute.CreateInstanceRequest.ExperimentalFeatures.Builder experimental = builder.getExperimental().toBuilder();
+        for (String publicKey : authorizedKeys(credentialsId)) {
+            experimental.addAuthorizedSshKeys(publicKey);
         }
+        builder.setExperimental(experimental.build());
+    }
+
+    /**
+     * The OpenSSH public keys matching the configured credential, ready to be
+     * injected into the instance.
+     *
+     * <p>Fails loudly rather than provisioning an instance the controller would
+     * then be unable to log in to.
+     */
+    @NonNull
+    static List<String> authorizedKeys(@CheckForNull String credentialsId) throws IOException {
+        SSHUserPrivateKey credential = lookup(credentialsId);
+        if (credential == null) {
+            throw new IOException("No SSH private key credential found with id \"" + credentialsId + "\".");
+        }
+        List<String> privateKeys = credential.getPrivateKeys();
+        if (privateKeys.isEmpty()) {
+            throw new IOException("SSH credential \"" + credentialsId + "\" holds no private key.");
+        }
+        Secret passphrase = credential.getPassphrase();
+        String password = passphrase == null ? null : Secret.toString(passphrase);
+
+        List<String> out = new ArrayList<>(privateKeys.size());
+        for (String pem : privateKeys) {
+            out.add(publicKeyOf(pem, password));
+        }
+        return out;
+    }
+
+    /**
+     * Computes the {@code authorized_keys} line for the public half of an
+     * OpenSSH private key.
+     *
+     * <p>Package-private so it can be tested against real generated keys without
+     * a credential store.
+     */
+    @NonNull
+    static String publicKeyOf(@NonNull String privateKeyPem, @CheckForNull String passphrase) throws IOException {
+        FilePasswordProvider passwords = passphrase == null || passphrase.isEmpty()
+                ? FilePasswordProvider.EMPTY
+                : FilePasswordProvider.of(passphrase);
+
+        Iterable<KeyPair> pairs;
+        try (InputStream in = new ByteArrayInputStream(privateKeyPem.getBytes(StandardCharsets.UTF_8))) {
+            pairs = SecurityUtils.loadKeyPairIdentities(
+                    null, NamedResource.ofName("jenkins-ssh-credential"), in, passwords);
+        } catch (IOException | GeneralSecurityException e) {
+            // A wrong passphrase surfaces as a corrupt stream rather than a
+            // security exception, and its own message ("Mismatched private key
+            // check values") does not suggest the passphrase to an operator.
+            throw new IOException(
+                    "Could not read the SSH private key. The passphrase on the credential may be wrong or missing, "
+                            + "or the key may be in an unsupported format. (" + e.getMessage() + ")",
+                    e);
+        }
+
+        KeyPair pair = pairs == null
+                ? null
+                : pairs.iterator().hasNext() ? pairs.iterator().next() : null;
+        if (pair == null) {
+            throw new IOException("The SSH credential is not in a key format this plugin can read.");
+        }
+        return PublicKeyEntry.toString(pair.getPublic());
+    }
+
+    @CheckForNull
+    private static SSHUserPrivateKey lookup(@CheckForNull String credentialsId) {
+        if (credentialsId == null || credentialsId.isBlank()) {
+            return null;
+        }
+        return CredentialsMatchers.firstOrNull(
+                CredentialsProvider.lookupCredentialsInItemGroup(
+                        SSHUserPrivateKey.class, Jenkins.get(), ACL.SYSTEM2, Collections.emptyList()),
+                CredentialsMatchers.withId(credentialsId));
     }
 
     @Override
@@ -186,26 +263,35 @@ public class SshLaunchStrategy extends AgentLaunchStrategy {
             return AgentImages.suggest(credentialsId);
         }
 
-        @POST
-        public FormValidation doCheckAuthorizedKey(@QueryParameter String value) {
-            Jenkins.get().checkPermission(Jenkins.ADMINISTER);
-            if (value == null || value.isBlank()) {
-                return FormValidation.error("Required: Namespace authorises SSH against this public key.");
-            }
-            String v = value.trim();
-            if (!v.startsWith("ssh-") && !v.startsWith("ecdsa-") && !v.startsWith("sk-")) {
-                return FormValidation.error("Expected an OpenSSH public key, e.g. \"ssh-ed25519 AAAA... jenkins\".");
-            }
-            return FormValidation.ok();
-        }
-
+        /**
+         * Reports the fingerprint of the key that will actually be injected.
+         *
+         * <p>Deriving it here means a key that cannot be read — wrong format, or
+         * a passphrase missing from the credential — is reported while the form
+         * is open, instead of as an agent that provisions and then never
+         * connects.
+         */
         @POST
         public FormValidation doCheckCredentialsId(@QueryParameter String value) {
             Jenkins.get().checkPermission(Jenkins.ADMINISTER);
             if (value == null || value.isBlank()) {
-                return FormValidation.error("Select the private key matching the authorized key above.");
+                return FormValidation.error("Select the SSH private key Jenkins should connect with.");
             }
-            return FormValidation.ok();
+            try {
+                List<String> keys = authorizedKeys(value);
+                StringBuilder sb = new StringBuilder("Namespace will authorise ");
+                sb.append(keys.size() == 1 ? "this key: " : keys.size() + " keys: ");
+                for (int i = 0; i < keys.size(); i++) {
+                    if (i > 0) {
+                        sb.append(", ");
+                    }
+                    sb.append(KeyUtils.getFingerPrint(
+                            PublicKeyEntry.parsePublicKeyEntry(keys.get(i)).resolvePublicKey(null, null, null)));
+                }
+                return FormValidation.ok(sb.toString());
+            } catch (IOException | GeneralSecurityException e) {
+                return FormValidation.error(e.getMessage());
+            }
         }
     }
 }

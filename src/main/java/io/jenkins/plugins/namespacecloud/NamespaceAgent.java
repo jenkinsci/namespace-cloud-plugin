@@ -13,12 +13,14 @@ import java.io.IOException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import jenkins.model.Jenkins;
+import org.jenkinsci.plugins.durabletask.executors.OnceRetentionStrategy;
 
 /**
  * A Jenkins node backed by one Namespace instance.
  *
- * <p>The node is single-use: once it goes idle past the profile's idle timeout
- * (or the build finishes), {@link #_terminate} destroys the instance. Namespace
+ * <p>The node is single-use: a profile with one executor is destroyed as soon
+ * as its build finishes, and one with several is destroyed after the profile's
+ * idle timeout. Either way {@link #_terminate} destroys the instance. Namespace
  * also enforces the instance deadline set at creation, so an instance is
  * reclaimed even if this controller never gets the chance to destroy it.
  */
@@ -48,7 +50,26 @@ public class NamespaceAgent extends AbstractCloudSlave {
         setMode(template.getMode());
         setLabelString(template.getLabels());
         setNodeDescription("Namespace instance " + instanceId + " (profile: " + template.getName() + ")");
-        setRetentionStrategy(new CloudRetentionStrategy(Math.max(1, template.getIdleMinutes())));
+        setRetentionStrategy(retentionFor(template));
+    }
+
+    /**
+     * One-shot retention where the profile allows it, idle-timeout retention
+     * otherwise.
+     *
+     * <p>With a single executor the instance can only ever serve one build, so
+     * {@link OnceRetentionStrategy} destroys it the moment that build finishes
+     * rather than leaving a billable VM idling for the whole timeout. Its
+     * argument is still the idle timeout, which covers the agent that connects
+     * but is never given work.
+     *
+     * <p>With more than one executor that strategy is wrong: it would terminate
+     * the node after the first build while its siblings are still running. Such
+     * a profile keeps the idle-timeout behaviour.
+     */
+    private static hudson.slaves.RetentionStrategy<?> retentionFor(@NonNull AgentTemplate template) {
+        int idle = Math.max(1, template.getIdleMinutes());
+        return template.getNumExecutors() == 1 ? new OnceRetentionStrategy(idle) : new CloudRetentionStrategy(idle);
     }
 
     public String getCloudName() {
