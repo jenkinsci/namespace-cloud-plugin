@@ -17,10 +17,6 @@
   <name>Namespace Cloud Agents</name>
   <description>Community plugin that provisions ephemeral Jenkins agents as Namespace micro-VM instances. Not affiliated with or endorsed by Namespace Labs.</description>
 
-  <!-- Lives at starkware-libs while hosting is requested. If the Jenkins
-       project accepts it, the repository moves to
-       github.com/jenkinsci/namespace-cloud-plugin and the scm URLs below
-       change to match; this <url> already points at that destination. -->
   <url>https://github.com/jenkinsci/${project.artifactId}-plugin</url>
 
   <licenses>
@@ -32,15 +28,15 @@
   </licenses>
 
   <scm>
-    <connection>scm:git:https://github.com/starkware-libs/namespace-cloud-plugin.git</connection>
-    <developerConnection>scm:git:git@github.com:starkware-libs/namespace-cloud-plugin.git</developerConnection>
+    <connection>scm:git:https://github.com/jenkinsci/namespace-cloud-plugin.git</connection>
+    <developerConnection>scm:git:git@github.com:jenkinsci/namespace-cloud-plugin.git</developerConnection>
     <tag>${scmTag}</tag>
-    <url>https://github.com/starkware-libs/namespace-cloud-plugin</url>
+    <url>https://github.com/jenkinsci/namespace-cloud-plugin</url>
   </scm>
 
   <issueManagement>
     <system>GitHub Issues</system>
-    <url>https://github.com/starkware-libs/namespace-cloud-plugin/issues</url>
+    <url>https://github.com/jenkinsci/namespace-cloud-plugin/issues</url>
   </issueManagement>
 
   <properties>
