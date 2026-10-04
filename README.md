@@ -39,7 +39,10 @@ idle timeout → ComputeService/DestroyInstance
 Three independent things stop instances leaking, in increasing order of
 bluntness:
 
-1. **Idle timeout** — `CloudRetentionStrategy` terminates the node after N idle minutes.
+1. **Retention** — a single-executor profile uses `OnceRetentionStrategy`, which
+   destroys the instance as soon as its build finishes. A profile with several
+   executors uses `CloudRetentionStrategy` and terminates after N idle minutes,
+   because ending it sooner would kill the builds on its other executors.
 2. **Orphan reaper** — every 10 minutes, instances labelled for this controller
    whose Jenkins node no longer exists are destroyed (15-minute grace period so
    it never races provisioning).
@@ -49,8 +52,6 @@ bluntness:
 
 ## Requirements
 
-- Jenkins 2.516.3 or newer
-- Java 17+ on the controller (built and tested against **21.0.9**)
 - A Namespace workspace and a token (below)
 
 ## 1. Mint a scoped token

@@ -83,7 +83,9 @@
   </f:advanced>
 
   <f:entry title="${%Agent profiles}" description="${%Each profile maps a Jenkins label to an instance shape.}">
-    <f:repeatableProperty field="templates" addCaption="${%Add a profile}"/>
+    <!-- header enables drag-and-drop reordering, which matters because the
+         first profile whose labels match a job is the one that provisions it. -->
+    <f:repeatableProperty field="templates" addCaption="${%Add a profile}" header="${%Profile}"/>
   </f:entry>
 
 </j:jelly>

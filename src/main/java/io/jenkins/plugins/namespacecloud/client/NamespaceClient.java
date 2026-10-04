@@ -66,6 +66,10 @@ public final class NamespaceClient implements Closeable {
         return Grpc.newChannelBuilderForAddress(host, PORT, TlsChannelCredentials.create())
                 .userAgent("jenkins-namespace-cloud")
                 .keepAliveTime(60, TimeUnit.SECONDS)
+                // gRPC does not read Jenkins' proxy settings by itself, and a
+                // controller with no direct route out cannot reach Namespace
+                // without them.
+                .proxyDetector(new JenkinsProxyDetector())
                 .build();
     }
 
@@ -351,7 +355,9 @@ public final class NamespaceClient implements Closeable {
                     .URI
                     .create("https://" + REGISTRY_HOST + "/v2/" + prefix.trim() + "/" + repository + "/tags/list")
                     .toURL();
-            java.net.HttpURLConnection c = (java.net.HttpURLConnection) url.openConnection();
+            // Through Jenkins' proxy, not around it; openConnection would
+            // ignore the configuration and fail on a proxied controller.
+            java.net.HttpURLConnection c = (java.net.HttpURLConnection) hudson.ProxyConfiguration.open(url);
             c.setRequestMethod("GET");
             c.setConnectTimeout(10_000);
             c.setReadTimeout(10_000);
