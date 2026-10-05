@@ -68,7 +68,7 @@
          (the Maven registry 422s), so the stubs are generated at build time
          from the protos vendored under src/main/proto. See that dir's
          VENDORED.txt for the upstream commit. -->
-    <protobuf.version>4.32.1</protobuf.version>
+    <protobuf.version>4.36.2</protobuf.version>
     <spotless.check.skip>false</spotless.check.skip>
     <!-- Overwritten by maven-release-plugin; needs a default for ordinary builds. -->
     <scmTag>HEAD</scmTag>
