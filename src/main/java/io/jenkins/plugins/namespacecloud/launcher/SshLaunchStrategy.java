@@ -193,6 +193,23 @@ public class SshLaunchStrategy extends AgentLaunchStrategy {
                 CredentialsMatchers.withId(credentialsId));
     }
 
+    /**
+     * The credentials id the launcher logs in with.
+     *
+     * <p>Namespace's ingress routes on the login name, which it hands back from
+     * {@code GetSSHConfig}; the username stored on the configured credential is
+     * irrelevant to it and gets the key rejected. When Namespace names a user,
+     * log in as that user with the configured key. Otherwise keep the configured
+     * credential as is.
+     */
+    @NonNull
+    static String loginCredentialsId(@CheckForNull String namespaceUsername, @NonNull String credentialsId) {
+        if (namespaceUsername == null || namespaceUsername.isBlank()) {
+            return credentialsId;
+        }
+        return NamespaceSshCredentials.idFor(namespaceUsername, credentialsId);
+    }
+
     @Override
     @NonNull
     public ComputerLauncher createLauncher(
@@ -216,7 +233,7 @@ public class SshLaunchStrategy extends AgentLaunchStrategy {
             }
         }
 
-        SSHLauncher launcher = new SSHLauncher(host, port, credentialsId);
+        SSHLauncher launcher = new SSHLauncher(host, port, loginCredentialsId(cfg.getUsername(), credentialsId));
         // Namespace mints fresh host keys per instance, so pinning them is not
         // possible; the transport is already authenticated by the ingress.
         launcher.setSshHostKeyVerificationStrategy(
@@ -253,7 +270,7 @@ public class SshLaunchStrategy extends AgentLaunchStrategy {
                             Jenkins.get(),
                             SSHUserPrivateKey.class,
                             Collections.<DomainRequirement>emptyList(),
-                            CredentialsMatchers.always())
+                            NamespaceSshCredentials.NOT_SYNTHETIC)
                     .includeCurrentValue(credentialsId);
         }
 
