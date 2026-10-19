@@ -63,7 +63,7 @@
          again would mean reinstating a jdk17 image that cannot connect. -->
     <jenkins.baseline>2.555</jenkins.baseline>
     <jenkins.version>${jenkins.baseline}.3</jenkins.version>
-    <grpc.version>1.84.0</grpc.version>
+    <grpc.version>1.85.0</grpc.version>
     <!-- Buf does not publish prebuilt Java SDKs for buf.build/namespace/cloud
          (the Maven registry 422s), so the stubs are generated at build time
          from the protos vendored under src/main/proto. See that dir's
