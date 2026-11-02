@@ -93,7 +93,7 @@
       <dependency>
         <groupId>com.google.errorprone</groupId>
         <artifactId>error_prone_annotations</artifactId>
-        <version>2.50.0</version>
+        <version>2.51.0</version>
       </dependency>
       <!-- grpc 1.84 pulls guava:33.6.0-android while the Jenkins BOM manages
            33.4.8-jre; pin one so requireUpperBoundDeps converges. -->
